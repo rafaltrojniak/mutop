@@ -12,7 +12,7 @@
 -export([init/1, terminate/3, code_change/4, handle_info/3, handle_event/3, handle_sync_event/4]).
 
 % States
--export([ ready/2, ready/3, recVersion/2, recLine/2, recBlock/2]).
+-export([ ready/2, ready/3, recLine/2, recLine/3, recBlock/2, recBlock/3]).
 
 -record(conState,{
 		host=nil,
@@ -26,8 +26,8 @@
 
 -define(HELO_TIMEOUT,	1000 ).
 -define(ECHO_TIMEOUT,	4500 ).
--define(DATA_TIMEOUT,	1000 ).
--define(COM_TIMEOUT,	1200 ).
+-define(DATA_TIMEOUT,	11000 ).
+-define(COM_TIMEOUT,	11100 ).
 
 % Client functions
 new(Host) when is_atom(Host)->
@@ -41,6 +41,7 @@ destroy(Pid) when is_pid(Pid)->
 	gen_fsm:sync_send_event(Pid,stop).
 
 %% Basic api - no request
+%% TODO remove,as it should be implemented in all states
 helo(Pid) when is_pid(Pid)->
 	gen_fsm:sync_send_event(Pid,getHelo).
 host(Pid) when is_pid(Pid)->
@@ -48,17 +49,17 @@ host(Pid) when is_pid(Pid)->
 
 % Requesting api
 version(Pid) when is_pid(Pid)->
-	gen_fsm:sync_send_event(Pid,getVersion).
+	gen_fsm:sync_send_event(Pid,getVersion,?COM_TIMEOUT).
 cap(Pid) when is_pid(Pid)->
-	gen_fsm:sync_send_event(Pid,getCap).
+	gen_fsm:sync_send_event(Pid,getCap,?COM_TIMEOUT).
 list(Pid) when is_pid(Pid)->
-	gen_fsm:sync_send_event(Pid,getList).
+	gen_fsm:sync_send_event(Pid,getList,?COM_TIMEOUT).
 nodes(Pid) when is_pid(Pid)->
-	gen_fsm:sync_send_event(Pid,getNodes).
+	gen_fsm:sync_send_event(Pid,getNodes,?COM_TIMEOUT).
 config(Pid,Plugin) when is_pid(Pid)->
-	gen_fsm:sync_send_event(Pid,{getConfig, Plugin}).
+	gen_fsm:sync_send_event(Pid,{getConfig, Plugin},?COM_TIMEOUT).
 fetch(Pid,Plugin) when is_pid(Pid)->
-	gen_fsm:sync_send_event(Pid,{getFetch, Plugin}).
+	gen_fsm:sync_send_event(Pid,{getFetch, Plugin},?COM_TIMEOUT).
 
 init({Host,Port})->
 	Result=gen_tcp:connect(Host,Port,[
@@ -72,7 +73,7 @@ init({Host,Port})->
 		{ok,Socket} ->
 			receive
 				{tcp, Socket, Helo}->
-					{ok, ready, #conState{host=Host,port=Port,socket=Socket,helo=Helo}}
+					{ok, ready, #conState{host=Host,port=Port,socket=Socket,helo=Helo},?ECHO_TIMEOUT}
 				after ?HELO_TIMEOUT ->
 						gen_tcp:close(Socket),
 						{stop, greetingTimeout}
@@ -88,7 +89,10 @@ code_change(OldVsn, StateName, OldData, Extra) ->
 
 %% Async events
 ready(timeout , State) ->
-	ready(getVersion,nil,State).
+	ready(getVersion,nil,State);
+ready(socket_closed, State) ->
+	{stop,normal,State}.
+
 
 %% Sync events
 ready(getHost,_From, State) ->
@@ -111,26 +115,25 @@ ready(getNodes,From, State) ->
 ready({getConfig,Plugin},From, State) ->
 		gen_tcp:send(State#conState.socket,"config "++ Plugin ++"\n"),
 		NewState=State#conState{client=From},
-		{next_state, recBlock, NewState, ?ECHO_TIMEOUT};
+		{next_state, recBlock, NewState, ?DATA_TIMEOUT};
 ready({getFetch,Plugin},From, State) ->
 		gen_tcp:send(State#conState.socket,"fetch "++ Plugin ++"\n"),
 		NewState=State#conState{client=From},
-		{next_state, recBlock, NewState, ?ECHO_TIMEOUT}.
+		{next_state, recBlock, NewState, ?DATA_TIMEOUT}.
 
 getLinedValue(Field, State, Request, From)->
 		gen_tcp:send(State#conState.socket, Request),
 		NewState=State#conState{client=From,field=Field},
-		{next_state, recLine, NewState, ?ECHO_TIMEOUT}.
+		{next_state, recLine, NewState, ?DATA_TIMEOUT}.
 
-
-
-recVersion({gotData, Version}, State) ->
+recLine(stop,_From, State) ->
 	case State#conState.client of
 		nil -> ok;
 		Pid ->
-			gen_fsm:reply(Pid,{ok,Version})
+			gen_fsm:reply(Pid,{error,closing})
 	end,
-	{next_state, ready, State#conState{client=nil}, ?ECHO_TIMEOUT}.
+	NewState=State#conState{field=nil,client=nil},
+	{stop, normal, ok, NewState}.
 
 recLine({gotData, Line}, State) ->
 	case State#conState.client of
@@ -141,6 +144,10 @@ recLine({gotData, Line}, State) ->
 	NewState=State#conState{field=nil,client=nil},
 	{next_state, ready, NewState, ?ECHO_TIMEOUT}.
 
+recBlock(stop,_From, State) ->
+	gen_fsm:reply(State#conState.client,{error,closing}),
+	{stop, normal, ok, State#conState{client=nil, buffer=[]}}.
+
 recBlock({gotData, Line}, State) ->
 	case Line of
 		".\n" ->
@@ -149,10 +156,17 @@ recBlock({gotData, Line}, State) ->
 		Line ->
 			NewState=State#conState{buffer=[Line|State#conState.buffer]},
 			{next_state, recBlock, NewState, ?DATA_TIMEOUT}
-	end.
+	end;
+
+recBlock(timeout, State) ->
+		gen_fsm:reply(
+			State#conState.client,
+			{error,{timeoutDuringReply,State#conState.buffer}}),
+		NewState=State#conState{client=nil,buffer=[]},
+		{stop,timeoutDuringBlockRead,NewState}.
 
 handle_info({tcp_closed, Socket}, State, LocalState) when Socket == LocalState#conState.socket->
-	gen_fsm:send_event(self(),{socket_closed}),
+	gen_fsm:send_event(self(),socket_closed),
 	NewLocalState=LocalState#conState{socket=nil},
 	{next_state, State, NewLocalState};
 

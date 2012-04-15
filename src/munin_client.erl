@@ -1,7 +1,9 @@
 -module(munin_client).
 -author("Rafał Trójniak <rafal@trojniak.net>").
--vsn(0.1).
+-vsn(0.2).
 -behavior(gen_server).
+
+-define(COM_TIMEOUT,30000).
 
 %gen_server requirements
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -19,15 +21,15 @@
 
 % These are all wrappers for calls to the server
 start(Host) -> gen_server:start_link(?MODULE, Host, []).
-stop(Pid) -> gen_server:call(Pid, stop).
+stop(Pid) -> gen_server:call(Pid, stop,?COM_TIMEOUT).
 
 % Restuest api
 plugins(Pid) when is_pid(Pid) ->
-	gen_server:call(Pid,plugins).
+	gen_server:call(Pid,plugins,?COM_TIMEOUT).
 config(Pid, Plugin) when is_pid(Pid) and is_list(Plugin) ->
-	gen_server:call(Pid,{config,Plugin}).
+	gen_server:call(Pid,{config,Plugin},?COM_TIMEOUT).
 fetch(Pid, Plugin) when is_pid(Pid) and is_list(Plugin) ->
-	gen_server:call(Pid,{fetch,Plugin}).
+	gen_server:call(Pid,{fetch,Plugin},?COM_TIMEOUT).
 
 % This is called when a connection is made to the server
 init(Host) ->
