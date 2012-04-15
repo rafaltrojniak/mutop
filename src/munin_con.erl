@@ -51,7 +51,10 @@ host(Pid) when is_pid(Pid)->
 version(Pid) when is_pid(Pid)->
 	gen_fsm:sync_send_event(Pid,getVersion,?COM_TIMEOUT).
 cap(Pid) when is_pid(Pid)->
-	gen_fsm:sync_send_event(Pid,getCap,?COM_TIMEOUT).
+	case gen_fsm:sync_send_event(Pid,getCap,?COM_TIMEOUT) of
+		{ok, Line } -> {ok, string:tokens(Line," ")};
+		Other -> Other
+	end.
 list(Pid) when is_pid(Pid)->
 	gen_fsm:sync_send_event(Pid,getList,?COM_TIMEOUT).
 nodes(Pid) when is_pid(Pid)->
@@ -73,7 +76,11 @@ init({Host,Port})->
 		{ok,Socket} ->
 			receive
 				{tcp, Socket, Helo}->
-					{ok, ready, #conState{host=Host,port=Port,socket=Socket,helo=Helo},?ECHO_TIMEOUT}
+					StripedHelo=string:strip(Helo,right,10),
+					{ok,
+						ready,
+						#conState{host=Host,port=Port,socket=Socket,helo=StripedHelo},
+						?ECHO_TIMEOUT}
 				after ?HELO_TIMEOUT ->
 						gen_tcp:close(Socket),
 						{stop, greetingTimeout}
@@ -111,15 +118,14 @@ ready(getList,From, State) ->
 ready(getCap,From, State) ->
 	getLinedValue(cap, State, "cap\n", From);
 ready(getNodes,From, State) ->
-	getLinedValue(nodes, State, "nodes\n", From);
+		gen_tcp:send(State#conState.socket,"nodes\n"),
+		{next_state, recBlock, State#conState{client=From}, ?DATA_TIMEOUT};
 ready({getConfig,Plugin},From, State) ->
 		gen_tcp:send(State#conState.socket,"config "++ Plugin ++"\n"),
-		NewState=State#conState{client=From},
-		{next_state, recBlock, NewState, ?DATA_TIMEOUT};
+		{next_state, recBlock, State#conState{client=From}, ?DATA_TIMEOUT};
 ready({getFetch,Plugin},From, State) ->
 		gen_tcp:send(State#conState.socket,"fetch "++ Plugin ++"\n"),
-		NewState=State#conState{client=From},
-		{next_state, recBlock, NewState, ?DATA_TIMEOUT}.
+		{next_state, recBlock, State#conState{client=From}, ?DATA_TIMEOUT}.
 
 getLinedValue(Field, State, Request, From)->
 		gen_tcp:send(State#conState.socket, Request),
@@ -139,7 +145,7 @@ recLine({gotData, Line}, State) ->
 	case State#conState.client of
 		nil -> ok;
 		Pid ->
-			gen_fsm:reply(Pid,{ok,Line})
+			gen_fsm:reply(Pid,{ok,string:strip(Line,right,10)})
 	end,
 	NewState=State#conState{field=nil,client=nil},
 	{next_state, ready, NewState, ?ECHO_TIMEOUT}.
@@ -154,7 +160,8 @@ recBlock({gotData, Line}, State) ->
 			gen_fsm:reply(State#conState.client,{ok,State#conState.buffer}),
 			{next_state, ready, State#conState{client=nil, buffer=[]}, ?ECHO_TIMEOUT};
 		Line ->
-			NewState=State#conState{buffer=[Line|State#conState.buffer]},
+			Striped=string:strip(Line,right,10),
+			NewState=State#conState{buffer=[Striped|State#conState.buffer]},
 			{next_state, recBlock, NewState, ?DATA_TIMEOUT}
 	end;
 
