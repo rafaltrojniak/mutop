@@ -21,7 +21,7 @@
 
 % These are all wrappers for calls to the server
 start(Host) -> gen_server:start_link(?MODULE, Host, []).
-stop(Pid) -> gen_server:call(Pid, stop,?COM_TIMEOUT).
+stop(Pid) when is_pid(Pid) -> gen_server:call(Pid, stop,?COM_TIMEOUT).
 
 % Restuest api
 list(Pid) when is_pid(Pid) ->
@@ -77,9 +77,9 @@ helperGetSingle(Command,State)->
 	{reply, {ok, Value}, State}.
 
 % We get compile warnings from gen_server unless we define these
-handle_cast(_Message,{ N, Counter}) -> {noreply,{ N, Counter}}.
-handle_info(_Message,{ N, Counter}) -> {noreply,{ N, Counter}}.
+handle_cast(_Message, State) -> {noreply, State}.
+handle_info(_Message, State) -> {noreply, State}.
 terminate(_Reason, State) -> 
 	munin_con:destroy(State#state.con),
 	ok.
-code_change(_OldVersion,{ N, Counter}, _Extra) -> {ok,{ N, Counter}}.
+code_change(_OldVersion, State, _Extra) -> {ok, State}.
