@@ -52,26 +52,22 @@ handle_call(cap, _From, State) ->
 	helperGetSingle(cap,State);
 
 handle_call({config, Plugin}, _From, State) ->
-	case lists:member(Plugin,State#state.plugins) of
-		true ->
-			{ok, Config}= munin_con:config(State#state.con,Plugin),
-			{reply, {ok, Config}, State};
-		false ->
-			{reply, {error, noPlugin}, State}
-	end;
+	helperGetPamametrized(config,Plugin,State);
 handle_call({fetch, Plugin}, _From, State) ->
-	case lists:member(Plugin,State#state.plugins) of
-		true ->
-			{ok, Config}= munin_con:fetch(State#state.con,Plugin),
-			{reply, {ok, Config}, State};
-		false ->
-			{reply, {error, noPlugin}, State}
-	end;
+	helperGetPamametrized(fetch,Plugin,State);
 handle_call(list, _From, State) ->
 	{reply, {ok, State#state.plugins}, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State}.
 
+helperGetPamametrized(Command,Plugin,State)->
+	case lists:member(Plugin,State#state.plugins) of
+		true ->
+			{ok, Result}= munin_con:Command(State#state.con,Plugin),
+			{reply, {Command, Result}, State};
+		false ->
+			{reply, {error, noPlugin}, State}
+	end.
 helperGetSingle(Command,State)->
 	{ok, Value}= munin_con:Command(State#state.con),
 	{reply, {ok, Value}, State}.

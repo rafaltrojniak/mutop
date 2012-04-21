@@ -48,7 +48,7 @@ handle_cast({call,Call,From}, State) ->
 % Handles call result - sends reply and notification about done request
 handleReply(From,Result,State) ->
 	gen_server:reply(From,Result),
-	munin_client_manager:requestDone(State#state.master,State#state.host,self()),
+	munin_client_pool:requestDone(State#state.master,self()),
 	{noreply, State}.
 
 handle_info(_Message, State) -> {noreply, State}.
