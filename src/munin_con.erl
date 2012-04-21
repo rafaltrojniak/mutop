@@ -132,11 +132,17 @@ getLinedValue(Field, State, Request, From)->
 		NewState=State#conState{client=From,field=Field},
 		{next_state, recLine, NewState, ?DATA_TIMEOUT}.
 
+recLine(socket_closed,_From, State) ->
+	case State#conState.client of
+		nil -> ok;
+		Pid -> gen_fsm:reply(Pid,{error,socketClosed})
+	end,
+	NewState=State#conState{field=nil,client=nil},
+	{stop, socketClosedDuringLineRead, ok, NewState};
 recLine(stop,_From, State) ->
 	case State#conState.client of
 		nil -> ok;
-		Pid ->
-			gen_fsm:reply(Pid,{error,closing})
+		Pid -> gen_fsm:reply(Pid,{error,closing})
 	end,
 	NewState=State#conState{field=nil,client=nil},
 	{stop, normal, ok, NewState}.
@@ -154,6 +160,12 @@ recBlock(stop,_From, State) ->
 	gen_fsm:reply(State#conState.client,{error,closing}),
 	{stop, normal, ok, State#conState{client=nil, buffer=[]}}.
 
+recBlock(socket_closed, State) ->
+	gen_fsm:reply(
+		State#conState.client,
+		{error,{socketClosedDuringBlockRead,State#conState.buffer}}),
+	NewState=State#conState{client=nil,buffer=[]},
+	{stop,socketClosedDuringBlockRead,NewState};
 recBlock({gotData, Line}, State) ->
 	case Line of
 		".\n" ->
