@@ -7,6 +7,7 @@
 % - creates connections to hosts and keeps track of them
 % - monitors connection pool
 % - blance requests to the connections
+% TODO - Restarting dead connections
 
 %gen_server requirements
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -58,6 +59,8 @@ requestDone(MyPid,ProxyPid) when is_pid(MyPid) and is_pid(ProxyPid) ->
 init(Host) ->
 	{ok, #state{host=Host}}.
 
+handle_call(stop, _From, State) ->
+	{stop, normal, ok, State};
 handle_call(Query, From, State) ->
 	{ProxyInfo,Count} = findProxy(State),
 	if
@@ -71,9 +74,7 @@ handle_call(Query, From, State) ->
 	end,
 	IncreasedState=incQueue(BigerState,PickedProxy),
 	munin_client_proxy:call(PickedProxy#proxyInfo.proxy,From,Query),
-	{noreply, IncreasedState};
-handle_call(stop, _From, State) ->
-	{stop, normal, ok, State}.
+	{noreply, IncreasedState}.
 
 % Increases queue length for ProxyInfo (Info) , returns new state
 incQueue(State,Info) ->
