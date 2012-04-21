@@ -1,4 +1,4 @@
--module(munin_client_manager).
+-module(munin_manager).
 -author("Rafał Trójniak <rafal@trojniak.net>").
 -vsn(0.1).
 -behavior(gen_server).
