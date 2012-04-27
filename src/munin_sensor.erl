@@ -51,10 +51,14 @@ getConfig(Pid) when is_pid(Pid) ->
 
 % Initiation
 init({{ConModule,ConPid},Name}) ->
-	{config,ConfigData}=ConModule:config(ConPid,Name),
-	{Global, Fields}=parseConfigData(ConfigData,[],[]),
-	% Get and parse config
-	{ok, #state{conModule=ConModule,conPid=ConPid,name=Name,fields=Fields,global=Global}}.
+	case ConModule:config(ConPid,Name) of
+		{error,Reason} ->
+			{stop,{shutdown,{failedToGetConfig,Reason}}};
+		{config,ConfigData} ->
+			{Global, Fields}=parseConfigData(ConfigData,[],[]),
+			% Get and parse config
+			{ok, #state{conModule=ConModule,conPid=ConPid,name=Name,fields=Fields,global=Global}}
+end.
 
 handle_call(getFields, _From, State) ->
 	Fields=lists:map(fun(FieldConfig) -> FieldConfig#field.name end, State#state.fields),
