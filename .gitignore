@@ -1,0 +1,6 @@
+*~
+.*
+*.swp
+*.beam
+ebin/mutop.app
+log/*.log
