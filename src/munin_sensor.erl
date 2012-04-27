@@ -32,9 +32,9 @@
 
 % These are all wrappers for calls to the server
 start({pool,PoolPid},Name) when is_pid(PoolPid) ->
-	gen_server:start(?MODULE, {{munin_client_pool, PoolPid}, Name}, [{debug,[trace,log]}]);
+	gen_server:start(?MODULE, {{munin_client_pool, PoolPid}, Name}, []);
 start({client,ClientPid},Name) when is_pid(ClientPid) ->
-	gen_server:start(?MODULE, {{munin_client, ClientPid}, Name}, [{debug,[trace]}]).
+	gen_server:start(?MODULE, {{munin_client, ClientPid}, Name}, []).
 
 stop(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, stop).
