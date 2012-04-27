@@ -34,9 +34,9 @@
 
 % These are all wrappers for calls to the server
 start({pool,PoolPid},Name) when is_pid(PoolPid) ->
-	gen_server:start_link(?MODULE, {{munin_client_pool, PoolPid}, Name}, [{debug,[trace,log]}]);
+	gen_server:start(?MODULE, {{munin_client_pool, PoolPid}, Name}, [{debug,[trace,log]}]);
 start({client,ClientPid},Name) when is_pid(ClientPid) ->
-	gen_server:start_link(?MODULE, {{munin_client, ClientPid}, Name}, [{debug,[trace]}]).
+	gen_server:start(?MODULE, {{munin_client, ClientPid}, Name}, [{debug,[trace]}]).
 
 stop(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, stop).
@@ -63,7 +63,8 @@ handle_call(getFields, _From, State) ->
 	{reply, Fields, State};
 handle_call(getValues, _From, State) ->
 	ConModule=State#state.conModule,
-	{fetch,{Fetch,Stamp}}=ConModule:fetch(State#state.conPid,State#state.name),
+	{fetch,Fetch}=ConModule:fetch(State#state.conPid,State#state.name),
+	Stamp=erlang:now(), %% FIXME stara wersja kodu
 	{NewFields, Values}=parseFetch(Fetch,Stamp,State#state.config#config.fields),
 	NewConfig=State#state.config#config{fields=NewFields},
 	{reply, Values, State#state{config=NewConfig}};

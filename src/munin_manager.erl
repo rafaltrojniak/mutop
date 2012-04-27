@@ -22,14 +22,14 @@
 -export([getPool/2, delPool/2]).
 
 % These are all wrappers for calls to the server
-start() -> gen_server:start_link(?MODULE, [], []).
-stop(Pid) when is_pid(Pid) -> gen_server:call(Pid, stop).
+start() -> gen_server:start_link({local,?MODULE}, ?MODULE, [], []).
+stop(_Pid) ->  gen_server:call(?MODULE, stop).
 
 % Restuest api
-getPool(Pid, Node) when is_pid(Pid) ->
-	gen_server:call(Pid,{getPool,Node}).
-delPool(Pid, Node) when is_pid(Pid) ->
-	gen_server:call(Pid,{delPool,Node}).
+getPool(_Pid, Node)  ->
+	gen_server:call(?MODULE,{getPool,Node}).
+delPool(_Pid, Node)  ->
+	gen_server:call(?MODULE,{delPool,Node}).
 
 init([]) ->
 	{ok, #state{pools=dict:new()}}.

@@ -35,7 +35,7 @@ new(Host) when is_atom(Host)->
 new({Host})->
 	new({Host,4949});
 new({Host,Port})->
-	gen_fsm:start_link(?MODULE,{Host,Port}, [{timeout,1000}]).
+	gen_fsm:start(?MODULE,{Host,Port}, [{timeout,1000}]).
 
 destroy(Pid) when is_pid(Pid)->
 	gen_fsm:sync_send_event(Pid,stop).

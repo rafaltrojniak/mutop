@@ -35,7 +35,7 @@
 -export([requestDone/2]).
 
 % These are all wrappers for calls to the server
-start(Host) -> gen_server:start_link(?MODULE, Host, []).
+start(Host) -> gen_server:start(?MODULE, Host, []).
 stop(Pid) when is_pid(Pid) -> gen_server:call(Pid, stop).
 
 % Restuest api

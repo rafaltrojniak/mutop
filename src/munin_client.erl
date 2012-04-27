@@ -20,7 +20,7 @@
 -export([list/1, config/2, fetch/2, version/1, cap/1, nodes/1]).
 
 % These are all wrappers for calls to the server
-start(Host) -> gen_server:start_link(?MODULE, Host, []).
+start(Host) -> gen_server:start(?MODULE, Host, []).
 stop(Pid) when is_pid(Pid) -> gen_server:call(Pid, stop,?COM_TIMEOUT).
 
 % Restuest api

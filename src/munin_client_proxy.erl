@@ -21,7 +21,7 @@
 
 % These are all wrappers for calls to the server
 start(Host, Master) when is_pid(Master) ->
-	gen_server:start_link(?MODULE, {Host,Master}, []).
+	gen_server:start(?MODULE, {Host,Master}, []).
 stop(Pid) when is_pid(Pid) -> gen_server:call(Pid, stop).
 
 % Just call instance
