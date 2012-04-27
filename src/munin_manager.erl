@@ -19,16 +19,16 @@
 -export([start/0, stop/1]).
 
 %request api
--export([getPool/2, delPool/2]).
+-export([getPool/1, delPool/1]).
 
 % These are all wrappers for calls to the server
 start() -> gen_server:start_link({local,?MODULE}, ?MODULE, [], []).
 stop(_Pid) ->  gen_server:call(?MODULE, stop).
 
 % Restuest api
-getPool(_Pid, Node)  ->
+getPool(Node)  ->
 	gen_server:call(?MODULE,{getPool,Node}).
-delPool(_Pid, Node)  ->
+delPool(Node)  ->
 	gen_server:call(?MODULE,{delPool,Node}).
 
 init([]) ->
