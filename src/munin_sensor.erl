@@ -11,7 +11,9 @@
 		conModule=nil,
 		conPid=nil,
 		name=nil,
-		config=nil
+		config=nil,
+		fields=[],
+		global=[]
 	}).
 
 -record(field,{
@@ -20,10 +22,6 @@
 		label="",
 		state=nil,
 		stamp=nil
-	}).
--record(config,{
-		fields=[],
-		general=[]
 	}).
 
 %general api
@@ -54,22 +52,20 @@ getConfig(Pid) when is_pid(Pid) ->
 % Initiation
 init({{ConModule,ConPid},Name}) ->
 	{config,ConfigData}=ConModule:config(ConPid,Name),
-	Config=parseConfigData(ConfigData,#config{}),
+	{Global, Fields}=parseConfigData(ConfigData,[],[]),
 	% Get and parse config
-	{ok, #state{conModule=ConModule,conPid=ConPid,name=Name,config=Config}}.
+	{ok, #state{conModule=ConModule,conPid=ConPid,name=Name,fields=Fields,global=Global}}.
 
 handle_call(getFields, _From, State) ->
-	Fields=lists:map(fun(FieldConfig) -> FieldConfig#field.name end, State#state.config#config.fields),
+	Fields=lists:map(fun(FieldConfig) -> FieldConfig#field.name end, State#state.fields),
 	{reply, Fields, State};
 handle_call(getValues, _From, State) ->
 	ConModule=State#state.conModule,
-	{fetch,Fetch}=ConModule:fetch(State#state.conPid,State#state.name),
-	Stamp=erlang:now(), %% FIXME stara wersja kodu
-	{NewFields, Values}=parseFetch(Fetch,Stamp,State#state.config#config.fields),
-	NewConfig=State#state.config#config{fields=NewFields},
-	{reply, Values, State#state{config=NewConfig}};
+	{fetch,{Fetch,Stamp}}=ConModule:fetch(State#state.conPid,State#state.name),
+	{NewFields, Values}=parseFetch(Fetch,Stamp,State#state.fields),
+	{reply, Values, State#state{fields=NewFields}};
 handle_call(getConfig, _From, State) ->
-	{reply, State#state.config#config.general, State};
+	{reply, State#state.global, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State}.
 
@@ -85,44 +81,44 @@ terminate(_Reason, _State) ->
 code_change(_OldVersion, State, _Extra) -> {ok, State}.
 
 % Parses config data returned from the node
-parseConfigData([["graph_title "|Title]|ConfigTail], Config) ->
-	General=lists:keystore(title,1,Config#config.general, {title,string:strip(Title)}),
-	parseConfigData(ConfigTail, Config#config{general=General});
+parseConfigData([["graph_title "|Title]|ConfigTail], GeneralConfig, FieldsConfig) ->
+	NewGeneralConfig=lists:keystore(title,1,GeneralConfig, {title,string:strip(Title)}),
+	parseConfigData(ConfigTail, NewGeneralConfig, FieldsConfig);
 
-parseConfigData([ConfigLine|ConfigTail], Config) ->
+parseConfigData([ConfigLine|ConfigTail], GeneralConfig, FieldsConfig) ->
 	case string:chr(ConfigLine,$ ) of
 		0->
 				% No space in the configLine
 				io:format("~p:~w Skiping Line ~s\n",[self(),?LINE,ConfigLine]),
-				parseConfigData(ConfigTail, Config);
+				parseConfigData(ConfigTail, GeneralConfig, FieldsConfig);
 		Space ->
 			{Header," " ++ Value}=lists:split(Space-1,ConfigLine),
 			case string:chr(Header,$.) of
 				0 ->
 					io:format("~p:~w Skiping Line ~s\n",[self(),?LINE,ConfigLine]),
-					parseConfigData(ConfigTail, Config);
+					parseConfigData(ConfigTail, GeneralConfig, FieldsConfig);
 				_ ->
 					case string:chr(Header,$.) of
 						0 ->
 							% no field separator - skipping
 							io:format("~p:~w Skiping Line ~s\n",[self(),?LINE,ConfigLine]),
-							parseConfigData(ConfigTail, Config);
+							parseConfigData(ConfigTail, GeneralConfig, FieldsConfig);
 						DotPosition ->
 							{Field,"."++ Property}=lists:split(DotPosition-1,Header),
-							case lists:keysearch(Field,#field.name,Config#config.fields) of
+							case lists:keysearch(Field,#field.name,FieldsConfig) of
 								false ->
 									FieldConfig=parsePropertyLine(Property,Value,#field{name=Field});
 								{value,ConfigFound} ->
 									FieldConfig=parsePropertyLine(Property,Value,ConfigFound)
 							end,
-							Fields=lists:keystore(Field, #field.name, Config#config.fields, FieldConfig),
-							parseConfigData(ConfigTail, Config#config{fields=Fields})
+							NewFieldsConfig=lists:keystore(Field, #field.name, FieldsConfig, FieldConfig),
+							parseConfigData(ConfigTail, GeneralConfig, NewFieldsConfig)
 					end
 			end
 	end;
 
-parseConfigData([], Config) ->
-	Config.
+parseConfigData([], GeneralConfig, NewFieldsConfig) ->
+	{GeneralConfig, NewFieldsConfig}.
 
 % Parses property for signle field
 parsePropertyLine("type","COUNTER",Config) ->

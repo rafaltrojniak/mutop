@@ -21,6 +21,7 @@
 		client=nil,
 		field=nil,
 		helo=nil,
+		stamp=nil,
 		buffer=[]
 	}).
 
@@ -125,7 +126,8 @@ ready({getConfig,Plugin},From, State) ->
 		{next_state, recBlock, State#conState{client=From}, ?DATA_TIMEOUT};
 ready({getFetch,Plugin},From, State) ->
 		gen_tcp:send(State#conState.socket,"fetch "++ Plugin ++"\n"),
-		{next_state, recBlock, State#conState{client=From}, ?DATA_TIMEOUT}.
+		Stamp=erlang:now(),
+		{next_state, recBlock, State#conState{client=From,stamp=Stamp}, ?DATA_TIMEOUT}.
 
 getLinedValue(Field, State, Request, From)->
 		gen_tcp:send(State#conState.socket, Request),
@@ -169,8 +171,11 @@ recBlock(socket_closed, State) ->
 recBlock({gotData, Line}, State) ->
 	case Line of
 		".\n" ->
-			gen_fsm:reply(State#conState.client,{ok,State#conState.buffer}),
-			{next_state, ready, State#conState{client=nil, buffer=[]}, ?ECHO_TIMEOUT};
+			case State#conState.stamp of
+				nil -> gen_fsm:reply(State#conState.client,{ok,State#conState.buffer});
+				Stamp -> gen_fsm:reply(State#conState.client,{ok,{State#conState.buffer,Stamp} })
+			end,
+			{next_state, ready, State#conState{client=nil, buffer=[], stamp=nil}, ?ECHO_TIMEOUT};
 		Line ->
 			Striped=string:strip(Line,right,10),
 			NewState=State#conState{buffer=[Striped|State#conState.buffer]},
