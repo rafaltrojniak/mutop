@@ -8,7 +8,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state,{
-		conModule=nil,
 		conPid=nil,
 		name=nil,
 		config=nil,
@@ -31,10 +30,8 @@
 -export([getFields/1, getValues/1, getConfig/1]).
 
 % These are all wrappers for calls to the server
-start({pool,PoolPid},Name) when is_pid(PoolPid) ->
-	gen_server:start(?MODULE, {{munin_client_pool, PoolPid}, Name}, []);
-start({client,ClientPid},Name) when is_pid(ClientPid) ->
-	gen_server:start(?MODULE, {{munin_client, ClientPid}, Name}, []).
+start(PoolPid,Name) when is_pid(PoolPid) ->
+	gen_server:start(?MODULE, {PoolPid, Name}, []).
 
 stop(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, stop).
@@ -50,22 +47,21 @@ getConfig(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid,getConfig).
 
 % Initiation
-init({{ConModule,ConPid},Name}) ->
-	case ConModule:config(ConPid,Name) of
+init({ConPid,Name}) ->
+	case munin_client_pool:config(ConPid,Name) of
 		{error,Reason} ->
 			{stop,{shutdown,{failedToGetConfig,Reason}}};
 		{config,ConfigData} ->
 			{Global, Fields}=parseConfigData(ConfigData,[],[]),
 			% Get and parse config
-			{ok, #state{conModule=ConModule,conPid=ConPid,name=Name,fields=Fields,global=Global}}
+			{ok, #state{conPid=ConPid,name=Name,fields=Fields,global=Global}}
 end.
 
 handle_call(getFields, _From, State) ->
 	Fields=lists:map(fun(FieldConfig) -> FieldConfig#field.name end, State#state.fields),
 	{reply, Fields, State};
 handle_call(getValues, _From, State) ->
-	ConModule=State#state.conModule,
-	{fetch,{Fetch,Stamp}}=ConModule:fetch(State#state.conPid,State#state.name),
+	{fetch,{Fetch,Stamp}}=munin_client_pool:fetch(State#state.conPid,State#state.name),
 	{NewFields, Values}=parseFetch(Fetch,Stamp,State#state.fields),
 	{reply, Values, State#state{fields=NewFields}};
 handle_call(getConfig, _From, State) ->
