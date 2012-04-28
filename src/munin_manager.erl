@@ -8,7 +8,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state,{
-		pools=nil
+		pools=nil,
+		sensors=[]
 	}).
 
 -define(WAITING_QUEUE,2).
@@ -19,7 +20,7 @@
 -export([start/0, stop/1]).
 
 %request api
--export([getPool/1, delPool/1]).
+-export([getPool/1, delPool/1, getSensor/2, delSensor/1]).
 
 % These are all wrappers for calls to the server
 start() -> gen_server:start_link({local,?MODULE}, ?MODULE, [], []).
@@ -30,19 +31,41 @@ getPool(Node)  ->
 	gen_server:call(?MODULE,{getPool,Node}).
 delPool(Node)  ->
 	gen_server:call(?MODULE,{delPool,Node}).
+% Restuest api
+getSensor(Node,Plugin)  ->
+	gen_server:call(?MODULE,{getSensor,Node,Plugin}).
+delSensor(Pid) when is_pid(Pid)  ->
+	gen_server:call(?MODULE,{delSensor,Pid}).
 
 init([]) ->
 	{ok, #state{pools=dict:new()}}.
 
-handle_call({getPool,Node}, _From, State) ->
+getPool(Node,State) ->
 	case dict:find(Node,State#state.pools) of
 		error ->
 			{ok,Pool}=munin_client_pool:start(Node),
 			NewDict=dict:store(Node,Pool,State#state.pools),
-			{reply, Pool, State#state{pools=NewDict}};
+			{Pool, State#state{pools=NewDict}};
 		{ok,Pool} ->
-			{reply, Pool, State}
+			{Pool, State}
+	end.
+
+handle_call({getPool,Node}, _From, State) ->
+	{Pool,NewState}=getPool(Node,State),
+	{reply, Pool, NewState};
+handle_call({getSensor,Node,Plugin}, _From, State) ->
+	case lists:keyfind({Node,Plugin},1,State#state.sensors) of
+		false ->
+			{Pool,NewState}=getPool(Node,State),
+			{ok,SensorPid}=munin_sensor:start(Pool,Plugin),
+			NewSensors=[{{Node,Plugin},SensorPid}|NewState#state.sensors],
+			{reply, {ok,SensorPid}, NewState#state{sensors=NewSensors}};
+		{_,SensorPid}->
+			{reply, {ok,SensorPid}, State}
 	end;
+handle_call({delSensor,Pid}, _From, State) ->
+	NewSensors=lists:keydelete(Pid,2,State#state.sensors),
+	{reply, ok, State#state{sensors=NewSensors}};
 handle_call({delPool,Node}, _From, State) ->
 	NewPools=dict:erase(Node,State#state.pools),
 	{reply, ok, State#state{pools=NewPools}};
