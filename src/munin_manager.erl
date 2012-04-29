@@ -43,23 +43,40 @@ init([]) ->
 getPool(Node,State) ->
 	case dict:find(Node,State#state.pools) of
 		error ->
-			{ok,Pool}=munin_client_pool:start(Node),
-			NewDict=dict:store(Node,Pool,State#state.pools),
-			{Pool, State#state{pools=NewDict}};
+			case munin_client_pool:start(Node) of
+				{ok,Pool} ->
+					munin_client_pool:start(Node),
+					NewDict=dict:store(Node,Pool,State#state.pools),
+					{ok,Pool, State#state{pools=NewDict}};
+				{error, Reason} ->
+					{error,Reason}
+			end;
 		{ok,Pool} ->
-			{Pool, State}
+			{ok,Pool, State}
 	end.
 
 handle_call({getPool,Node}, _From, State) ->
-	{Pool,NewState}=getPool(Node,State),
-	{reply, Pool, NewState};
+	case getPool(Node,State) of
+		{error,Reason} ->
+			{reply,{error,Reason},State};
+		{ok,Pool,NewState}->
+			{reply, Pool, NewState}
+	end;
 handle_call({getSensor,Node,Plugin}, _From, State) ->
 	case lists:keyfind({Node,Plugin},1,State#state.sensors) of
 		false ->
-			{Pool,NewState}=getPool(Node,State),
-			{ok,SensorPid}=munin_sensor:start(Pool,Plugin),
-			NewSensors=[{{Node,Plugin},SensorPid}|NewState#state.sensors],
-			{reply, {ok,SensorPid}, NewState#state{sensors=NewSensors}};
+			case getPool(Node,State) of
+				{error, Reason} ->
+					{reply, {error,Reason},State};
+				{ok,Pool,NewState} ->
+					case munin_sensor:start(Pool,Plugin) of
+						{error,Reason} ->
+							{reply, {error,Reason}, NewState};
+						{ok,SensorPid} ->
+							NewSensors=[{{Node,Plugin},SensorPid}|NewState#state.sensors],
+							{reply, {ok,SensorPid}, NewState#state{sensors=NewSensors}}
+					end
+			end;
 		{_,SensorPid}->
 			{reply, {ok,SensorPid}, State}
 	end;

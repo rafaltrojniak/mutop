@@ -30,8 +30,12 @@ call(Pid, From, Call) when is_pid(Pid)  ->
 
 % This is called when a connection is made to the server
 init({Host,Master}) ->
-	{ok,Client}=munin_client:start(Host),
-	{ok, #state{client=Client,master=Master,host=Host}}.
+	case munin_client:start(Host) of
+		{error,Reason} ->
+			{stop, Reason};
+		{ok,Client}->
+			{ok, #state{client=Client,master=Master,host=Host}}
+	end.
 
 % Stops execution
 handle_call(stop, _From, State) ->

@@ -67,14 +67,19 @@ handle_call(Query, From, State) ->
 		ProxyInfo == nil ;
 		Count < ?PROXY_LIMIT andalso ProxyInfo#proxyInfo.queue >= ?WAITING_QUEUE
 		->
-			{BigerState,PickedProxy}=addProxy(State);
+			case addProxy(State) of 
+				{ok,BigerState,NewProxy} ->
+					IncreasedState=incQueue(BigerState,NewProxy),
+					munin_client_proxy:call(NewProxy#proxyInfo.proxy,From,Query),
+					{noreply, IncreasedState};
+				{error,Reason} ->
+					{reply,{error,Reason},State}
+			end;
 		true ->
-			PickedProxy=ProxyInfo,
-			BigerState=State
-	end,
-	IncreasedState=incQueue(BigerState,PickedProxy),
-	munin_client_proxy:call(PickedProxy#proxyInfo.proxy,From,Query),
-	{noreply, IncreasedState}.
+			IncreasedState=incQueue(State,ProxyInfo),
+			munin_client_proxy:call(ProxyInfo#proxyInfo.proxy,From,Query),
+			{noreply, IncreasedState}
+	end.
 
 % Increases queue length for ProxyInfo (Info) , returns new state
 incQueue(State,Info) ->
@@ -96,10 +101,14 @@ decQueue(State,ProxyPid) ->
 
 % Adds new proxy process to the sate
 addProxy(State) ->
-	{ok,Proxy}=munin_client_proxy:start(State#state.host,self()),
-	Info=#proxyInfo{proxy=Proxy,queue=0},
-	NewProxies=[Info|State#state.proxies],
-	{State#state{proxies=NewProxies},Info}.
+	case munin_client_proxy:start(State#state.host,self()) of
+		{error, Reason} ->
+			{error, Reason};
+		{ok,Proxy} ->
+			Info=#proxyInfo{proxy=Proxy,queue=0},
+			NewProxies=[Info|State#state.proxies],
+			{ok,State#state{proxies=NewProxies},Info}
+	end.
 
 % Finds best proxy to use for particular node
 findProxy(State)->

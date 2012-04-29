@@ -39,10 +39,14 @@ fetch(Pid, Plugin) when is_pid(Pid) and is_list(Plugin) ->
 
 % This is called when a connection is made to the server
 init(Host) ->
-	{ok,Con}=munin_con:new(Host),
-	{ok,PluginLine}=munin_con:list(Con),
-	Plugins=string:tokens(PluginLine," \n"),
-	{ok, #state{con=Con,plugins=Plugins}}.
+	case munin_con:new(Host) of
+		{error, Reason} ->
+			{stop,{failedToCreateConnection,Reason}};
+		{ok,Con} ->
+			{ok,PluginLine}=munin_con:list(Con),
+			Plugins=string:tokens(PluginLine," \n"),
+			{ok, #state{con=Con,plugins=Plugins}}
+	end.
 
 handle_call(nodes, _From, State) ->
 	helperGetSingle(nodes,State);
