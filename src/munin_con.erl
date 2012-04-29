@@ -31,7 +31,7 @@
 -define(COM_TIMEOUT,	11100 ).
 
 % Client functions
-new(Host) when is_atom(Host)->
+new(Host) when is_atom(Host); is_list(Host)->
 	new({Host,4949});
 new({Host})->
 	new({Host,4949});
