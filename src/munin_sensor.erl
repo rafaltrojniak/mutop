@@ -89,19 +89,16 @@ parseConfigData([ConfigLine|ConfigTail], GeneralConfig, FieldsConfig) ->
 	case string:chr(ConfigLine,$ ) of
 		0->
 				% No space in the configLine
-				io:format("~p:~w Skiping Line ~s\n",[self(),?LINE,ConfigLine]),
 				parseConfigData(ConfigTail, GeneralConfig, FieldsConfig);
 		Space ->
 			{Header," " ++ Value}=lists:split(Space-1,ConfigLine),
 			case string:chr(Header,$.) of
 				0 ->
-					io:format("~p:~w Skiping Line ~s\n",[self(),?LINE,ConfigLine]),
 					parseConfigData(ConfigTail, GeneralConfig, FieldsConfig);
 				_ ->
 					case string:chr(Header,$.) of
 						0 ->
 							% no field separator - skipping
-							io:format("~p:~w Skiping Line ~s\n",[self(),?LINE,ConfigLine]),
 							parseConfigData(ConfigTail, GeneralConfig, FieldsConfig);
 						DotPosition ->
 							{Field,"."++ Property}=lists:split(DotPosition-1,Header),
