@@ -1,0 +1,3 @@
+[submodule "encurses"]
+	path = encurses
+	url = https://github.com/jzellner/encurses.git
