@@ -30,6 +30,17 @@ init([]) ->
 						permanent,
 						5000,
 						worker,
+						[]},
+					{escreen_gate,
+						{escreen_gate,start,[]},
+						permanent,
+						5000,
+						worker,
+						[]},
+					{mutop,
+						{mutop_controller,start,[]},
+						permanent,
+						5000,
+						worker,
 						[]}
 				]} }.
-

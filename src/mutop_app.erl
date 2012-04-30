@@ -3,7 +3,7 @@
 -behaviour(application).
 
 %% Application callbacks
--export([start/2, stop/1, cli_start/2]).
+-export([start/2, stop/1, cli_start/1]).
 
 %% ===================================================================
 %% Application callbacks
@@ -16,5 +16,8 @@ start(_StartType, _StartArgs) ->
 stop(_State) ->
     ok.
 
-cli_start(_Args,_MainProc) ->
-	application:start(mutop).
+cli_start(_Args) ->
+	application:start(mutop),
+	receive
+		stop -> ok
+	end .
