@@ -1,0 +1,3 @@
+#!/bin/bash
+DIRNAME=`(readlink -n $0 || echo $0) | xargs dirname`
+erl -config config -noinput -hidden -pa $DIRNAME/ebin -pa $DIRNAME/deps/cecho/ebin +A 20 +Bc -eval "application:start(mutop)" $@

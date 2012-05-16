@@ -66,7 +66,7 @@ init([]) ->
 
 terminate(_Reason, _StateName, _Data)->
 	cleanUp(),
-	halt(),
+	init:stop(),
 	ok.
 
 code_change(_OldVsn, StateName, OldData, _Extra) ->

@@ -1,5 +1,5 @@
 -module(escreen_gate).
--include("encurses.hrl").
+-include_lib("cecho/include/cecho.hrl").
 -author("Rafał Trójniak <rafal@trojniak.net>").
 -vsn(0.1).
 
@@ -31,10 +31,8 @@ unsubscribeKeys(Pid) when is_pid(Pid)->
 	gen_fsm:sync_send_all_state_event(?MODULE, {unsubscribe,Pid}).
 
 cleanup()->
-	encurses:erase(),
-	encurses:refresh(),
-	encurses:endwin(),
-	encurses:echo(),
+	ok = cecho:refresh(),
+	cecho:curs_set(?ceCURS_NORMAL),
 	ok.
 
 %States
@@ -52,12 +50,11 @@ on(_Event, _From, State) ->
 	{reply, unkown, on, State}.
 
 off(turnOn, _From, State) ->
-	encurses:initscr(),
-	encurses:keypad(0, true),
-	encurses:curs_set(?CURS_INVISIBLE),
-	encurses:erase(),
-	encurses:noecho(),
-	encurses:refresh(),
+	%% Set attributes
+	cecho:cbreak(),
+	cecho:noecho(),
+	cecho:curs_set(?ceCURS_INVISIBLE),
+	cecho:refresh(),
 	MyPid=self(),
 	Fetcher=spawn(fun()-> keyFetcher(MyPid) end ),
 	{reply, ok, on, State#state{keyFetcher=Fetcher}};
@@ -95,6 +92,6 @@ handle_info({key, Char}, State, LocalState) ->
 	{next_state,State,LocalState}.
 
 keyFetcher(MasterPid)->
-    Char=encurses:getch(),
+    Char=cecho:getch(),
 		MasterPid ! {key,Char},
 		keyFetcher(MasterPid).

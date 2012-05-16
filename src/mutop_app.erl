@@ -11,13 +11,11 @@
 
 start(_StartType, _StartArgs) ->
 		application:start(sasl),
+		application:start(cecho),
 		mutop_sup:start_link().
 
 stop(_State) ->
     ok.
 
 cli_start(_Args) ->
-	application:start(mutop),
-	receive
-		stop -> ok
-	end .
+	application:start(mutop).

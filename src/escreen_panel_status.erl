@@ -7,6 +7,8 @@
 %gen_server requirements
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-include_lib("cecho/include/cecho.hrl").
+
 -record(state,{
 		width=nil,
 		height=nil,
@@ -38,19 +40,19 @@ setContent(Pid, Content) when is_pid(Pid) and is_list(Content) ->
 
 init({full, Height, StartX, StartY})
 		when is_integer(Height) and is_integer(StartX) and is_integer(StartX)->
-	{X,_}=encurses:getmaxxy(),
-	Win=encurses:newwin(X, Height, StartX, StartY),
+	{_,X}=cecho:getmaxyx(),
+	Win=cecho:newwin(Height, X, StartY, StartX),
 	{ok, #state{width=full, height=Height, startX=StartX, startY=StartY, window=Win}};
 init({Width, Height, StartX, StartY})
 		when is_integer(Width) and is_integer(Height) and is_integer(StartX) and is_integer(StartX)->
-	Win=encurses:newwin(Width, Height, StartX, StartY),
+	Win=cecho:newwin(Height, Width, StartY, StartX),
 	{ok, #state{width=Width, height=Height, startX=StartX, startY=StartY, window=Win}}.
 
 
 handle_call({setContent,Content}, _From, State) ->
-	encurses:erase(State#state.window),
-	encurses:waddstr(State#state.window, Content),
-	encurses:refresh(State#state.window),
+	cecho:werase(State#state.window),
+	cecho:waddstr(State#state.window, Content),
+	cecho:wrefresh(State#state.window),
 	{reply, ok, State#state{content=Content}};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State}.
@@ -62,6 +64,6 @@ handle_cast(missing, State) ->
 handle_info(missing, State) ->
 	{noreply, State}.
 terminate(_Reason, State) ->
-	encurses:delwin(State#state.window),
+	cecho:delwin(State#state.window),
 	ok.
 code_change(_OldVersion, State, _Extra) -> {ok, State}.

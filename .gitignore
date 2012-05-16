@@ -6,3 +6,4 @@ ebin/mutop.app
 log/*.log
 priv/*
 priv
+deps
